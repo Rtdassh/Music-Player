@@ -1,33 +1,72 @@
 import linked_lists as ll
 import pygame
 import customtkinter as ctk
-import os
+import time
 
-track_name = ""
-script_dir = os.path.dirname(os.path.abspath(__file__))
-list_route = os.path.join(script_dir, "tracks")
-track_route = os.path.join(list_route, track_name)
-player = pygame.mixer.music
+class MusicPlayer:
+    def __init__(self):
+        pygame.mixer.init()
+        
+        self.current_song = ""
+        self.paused = True
+        self.songs_list = []
+        self.current_song_index = 0
+        self.total_length = 0
+        self.current_time = 0
+        self.artist = "Unknown Artist"
+        self.song_title = "No Song Selected"
+        self.year = ""
 
-def main():
-    pygame.init()
-    player.load(track_route)
-    player.play()
-    window = ctk.CTk()
-    window.title("Music Player")
+        self.update_thread = None
+        self.thread_running = False
 
-    label_song = ctk.CTkLabel(window, text="Track Name")
-    label_artist = ctk.CTkLabel(window, text="Artist")
+    def browse_file(self):
+        filetypes = (("MP3 Files", "*.mp3"), ("All files", "*.*"))
+        filename = ctk.filedialog.askopenfilename(filetypes=filetypes)
+        if filename:
+            self.add_song(filename)
 
-    boton = ctk.CTkButton(window, text="Play", command = player.unpause, fg_color="red")
-    botonStop = ctk.CTkButton(window, text="Pause", command=player.pause, fg_color="red")
+    def add_song(self, filename):
+        if filename not in self.songs_list:
+            self.songs_list.append(filename)
+            if len(self.songs_list) == 1:
+                self.current_song_index = 0
+                self.load_song()
 
-    label_song.pack(pady=5)
-    label_artist.pack(pady=5)
-    boton.pack(pady=5)
-    botonStop.pack(pady=5)
+    def load_song(self):
+        if self.songs_list:
+            self.current_song = self.songs_list[self.current_song_index]
 
-    window.mainloop()
+    def play_pause(self):
+        if not self.songs_list:
+            self.browse_file()
+            return
+            
+        if self.paused:
+            try:
+                if self.current_time == 0: 
+                    pygame.mixer.music.load(self.current_song)
+                    pygame.mixer.music.play()
+                else:
+                    pygame.mixer.music.play(start=self.current_time)               
+                self.paused = False   
 
-if __name__ == "__main__":
-    main()
+            except Exception as e:
+                print(f"Error playing song: {e}")
+        else:  
+            pygame.mixer.music.pause()
+            self.paused = True
+    
+    def stop(self):
+        pygame.mixer.music.stop()
+        self.paused = True
+        self.current_time = 0
+
+    def update_progress(self):
+        while self.thread_running:
+            if not self.paused and pygame.mixer.music.get_busy():
+                self.current_time += 1
+                
+                if self.current_time >= self.total_length:
+                    self.next_song()      
+            time.sleep(1)
